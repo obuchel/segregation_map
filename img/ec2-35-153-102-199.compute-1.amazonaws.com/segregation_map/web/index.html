@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+   
+<link type="text/css" rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700">
+<link rel="icon" type="image/png" sizes="32x32" href="../../assets/favicon/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="../../assets/favicon/favicon-16x16.png">
+
+<link href='https://fonts.googleapis.com/css?family=Sintony:400,700' rel='stylesheet' type='text/css'>
+<link rel="stylesheet" href="css/reset.css"> 
+<link rel="stylesheet" href="css/style.css"> 
+<!-----
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/css/foundation.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/js/foundation.min.js"></script>
+--->
+    
+    <style>
+        .column {
+  float: left;
+  width: 25%;
+}
+
+/* Clear floats after the columns */
+.row:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+        .wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+    
+        .states {
+  fill: #ccc;
+  stroke: #fff;
+}
+        #map {
+/*z-index:50 !important;*/
+overflow: hidden;
+border: 0px solid rgba(46, 46, 46, 0.1);
+padding: 3px;
+width:99.5%;
+height: 110%;
+behavior: url(PIE.htc); 
+position: relative;
+          /*  top:100px;*/
+}
+        #mainImage{
+            left:-20px !important;
+            position:absolute;
+            width:97%;
+            top:0;
+            height:100%;
+        }
+        
+        #title_down{
+              position: absolute;
+            z-index:1000;
+            top:45%;
+            background: black;
+            color:#c0a672;
+            opacity:0.7;
+            font-size: 360%;
+            
+        }
+        
+        h3{
+           font-size: 200%; 
+            
+        }
+        
+            h5{
+           font-size: 150%; 
+            margin-top:2%;    
+            
+        }
+        
+        .left, .right{
+font-size:180%;
+        }   
+
+        .left{
+            
+            float: left;
+            margin-left:5%;
+            margin-right:20%;
+        }
+ .right{
+            
+ 
+            margin-right:3%;
+     
+        }
+
+   
+         
+
+         #affiliation{
+     position: absolute;
+            top:85.8%;
+             width:95.6%;
+            background: white;
+            color:yellow;
+            opacity:0.7;
+            font-size: 180%;
+        height:14.2%;
+                 z-index:1;
+            
+        }
+        
+        .cd-scroll-down {
+             z-index:100;
+            
+        }
+        h2,a{
+            
+            color:#c0a672 !important;
+        }
+        h5,h3{
+            
+            color:white !important;
+        }
+</style>
+<title>Social Segregation in American Cities</title>
+</head>
+<body>
+    
+    
+    <script src="js/modernizr.js"></script> 
+  <script src="js/jquery-2.1.4.js"></script>
+<script src="js/main.js"></script>   
+
+<script src="https://d3js.org/d3.v4.min.js"></script>
+       <script src="https://d3js.org/d3-array.v1.min.js"></script>
+<script src="https://d3js.org/d3-geo.v1.min.js"></script>
+
+<script src="https://d3js.org/d3-selection.v1.min.js"></script>
+
+<script src="https://d3js.org/d3-collection.v1.min.js"></script>
+<script src="https://d3js.org/d3-dispatch.v1.min.js"></script>
+<script src="https://d3js.org/d3-request.v1.min.js"></script>
+
+<script src="https://d3js.org/topojson.v1.min.js"></script>
+
+
+
+   
+
+<script src="http://d3js.org/queue.v1.min.js"></script>
+     <script>$.ajaxPrefilter(function( options, originalOptions, jqXHR ) { options.async = true; });</script>
+    
+ 
+    
+    
+<nav class="cd-vertical-nav">
+<ul>
+<li><a href="#section1" class="active"><span class="label">Home</span></a></li>
+<li><a href="#section2"><span class="label">Overview</span></a></li>    
+<!---<li><a href="#section3"><span class="label">Overview</span></a></li>--->
+<li><a href="#section3"><span class="label">How does it work?</span></a></li>    
+<li><a href="#section4"><span class="label">Map</span></a></li>
+<li><a href="#section5"><span class="label">Authors</span></a></li>
+<li><a href="#section6"><span class="label">References</span></a></li>
+
+</ul>
+</nav>
+    
+    
+<button class="cd-nav-trigger cd-image-replace">Open navigation<span aria-hidden="true"></span></button>
+<section id="section1" class="cd-section">
+
+<div class="content-wrapper">   
+       <h1 id="title_down">Social Segregation in American Cities</h1>
+    <div id="affiliation"><img src="img/Mit_medialab_logo.png" style="float:left; margin-left:10px; margin-top:8px;"><img src="img/Logo2.png" style="float:left; margin-left:10px; margin-top:8px;"></div>   
+      <br><img id="mainImage" src="img/jose_image.jpg">
+
+<a href="#section2" class="cd-scroll-down cd-image-replace">scroll down</a>
+<div class="cd-nugget-info">
+
+</div> 
+</div>
+</section>
+    
+    
+<section id="section2" class="cd-section">
+<div class="content-wrapper">
+<a class="left" href="#section1">Social Segregation in American Cities</a>
+<a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Chicago">Chicago</a>    
+<a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Dallas">Dallas</a>     
+
+    <a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#NewYork">New York</a>   
+
+     <a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Detroit">Detroit</a>
+     <a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Philadelphia">Philadelphia</a>
+    
+<p>&nbsp;</p>    
+<h2>Overview</h2>
+<p>American cities are diverse and complex. Their neighborhoods are segregated by race and income. Segregation affects access to education, health, and services, as well as the nature of human interactions. Communications in the digital space and the flows of information are constrained by the segregation of cities.</p>
+    
+    <p><b>Social Segregation in the US</b> unveils the networks of human interactions among urban dwellers in some of the most populated American cities, including human mobility and online communication. The tool provides an opportunity of navigate through a richer picture of the spatial distribution of social dynamics in America.</p>
+   <!--- <p>Internet provides access to information across the whole population, regardless of their demographics. However, the segregation of cities also affect the segregation of human interactions online.
+</p>-->
+ <p>&nbsp;</p>
+ <p>&nbsp;</p>
+        <p>&nbsp;</p>
+<p>&nbsp;</p>
+    <p>&nbsp;</p>
+     <p>&nbsp;</p>
+    <p>&nbsp;</p>    <p>&nbsp;</p>
+    <p>&nbsp;</p>
+
+</div>
+</section>
+    
+    <!----
+    
+    <section id="section3" class="cd-section">
+<div class="content-wrapper">
+    
+    
+    <a class="left" href="#section1">Social Segregation in American Cities</a>
+<a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Chicago">Chicago</a>    
+<a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Dallas">Dallas</a>     
+
+    <a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#NewYork">New York</a>   
+
+     <a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Detroit">Detroit</a>
+     <a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Philadelphia">Philadelphia</a>
+        <p>&nbsp;</p>
+<h2>Overview</h2>
+
+<p>Patterns of Social Segregation in American Cities shows social interactions among urban dwellers  in some of the most populated American cities, including human mobility and online communication. It provides a richer picture of the geography of social dynamics in American cities.
+</p>
+
+
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+    <p>&nbsp;</p>
+    <p>&nbsp;</p>
+    <p>&nbsp;</p>
+    <p>&nbsp;</p>
+    <p>&nbsp;</p>    <p>&nbsp;</p>
+    <p>&nbsp;</p>
+      <p>&nbsp;</p>
+     
+    
+</div>
+</section>
+    --->
+    
+   <section id="section3" class="cd-section">
+<div class="content-wrapper">
+    
+        <a class="left" href="#section1">Social Segregation in American Cities</a>
+<a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Chicago">Chicago</a>    
+<a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Dallas">Dallas</a>     
+
+    <a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#NewYork">New York</a>   
+
+     <a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Detroit">Detroit</a>
+     <a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Philadelphia">Philadelphia</a>
+    
+<p>&nbsp;</p>   
+    <h2>How does it work?</h2>
+ <p>&nbsp;</p>
+
+    
+    <div class="wrapper">
+        <div class="cell" style="border 0px;">
+          <img class="thumbnail"  style="border:0px !important;  width:75%" src="img/image1.png">
+ 
+            <p><span style="color:steelblue;">Step 1: Select a) income or race; b) mobility or communication</span></p>
+       
+          
+        </div>
+        <div class="cell" style="border 0px;">
+          <img class="thumbnail"  style="border:0px !important; width:75%" src="img/image2.png" >
+    
+            <p><span style="color:steelblue;">Step 2: Select </span><span style="color:red;">Census Tract</span></p>
+    
+        </div>
+        <div class="cell" style="border 0px;">
+          <img class="thumbnail"  style="border:0px !important;  width:75%" src="img/image3.png">
+
+            <p><span style="color:steelblue;">Step 3: Check the <span style="color:#c0a672;">connections</span><span style="color:steelblue;"> with this </span><span style="color:red;">Census Tract</span> </p>
+  
+        </div>
+
+      </div> 
+    <p>&nbsp;</p>   
+    <p>&nbsp;</p>
+      <p>&nbsp;</p>
+      <p>&nbsp;</p>   
+    <p>&nbsp;</p>
+      <p>&nbsp;</p>
+           
+
+</div>
+</section>
+      
+    
+<section id="section4" class="cd-section">
+<div class="content-wrapper">
+
+        <a class="left" href="#section1">Social Segregation in American Cities</a>
+<a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Chicago">Chicago</a>    
+<a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Dallas">Dallas</a>     
+
+    <a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#NewYork">New York</a>   
+
+     <a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Detroit">Detroit</a>
+     <a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Philadelphia">Philadelphia</a>
+ <p>&nbsp;</p>    
+
+<h2>Select a city</h2>
+  
+  
+    
+    
+    
+       <div class="wrapper">
+    
+      <div class="cell">
+          <p><a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Philadelphia"><img src="img/Phil.png" alt="Philadelphia" style="width:300px;height:220px; border:3px; border-color:black"></a></p>
+        
+      </div>
+      <div class="cell">    
+          <p><a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Detroit"><img src="img/Detr.png" alt="Detroit" style="width:300px;height:220px; border:3px; border-color:black; "></a></p>
+      
+      </div>
+      <div class="cell">
+          <p><a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Dallas"><img src="img/Dal.png" alt="Dallas" style="width:300px;height:220px; border:3px; border-color:black"></a></p>
+            
+
+      </div>
+
+
+
+    
+
+      <div class="cell">
+          <p><a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#Chicago"><img src="img/Chic.png" alt="Chicago" style="width:300px;height:220px; border:3px; border-color:black"></a></p>
+      
+      </div>
+      <div class="cell">    
+          <p><a class="right" href="http://ec2-35-153-102-199.compute-1.amazonaws.com/segregation_map/index3.html#NewYork"><img src="img/NY.png" alt="New York" style="width:300px;height:220px; border:3px; border-color:black; "></a></p>
+  
+      </div>
+
+ <div class="cell">    
+          <p>&nbsp;</p>
+   
+      </div>
+
+    <p>&nbsp;</p>   
+    <p>&nbsp;</p>
+      <p>&nbsp;</p>
+           
+      <p>&nbsp;</p>   
+    <p>&nbsp;</p>
+      <p>&nbsp;</p>
+           
+    <p>&nbsp;</p>   
+    <p>&nbsp;</p>
+      <p>&nbsp;</p>
+
+    </div>
+    <!-----
+         <h2 id="title_down1">Philadelphia</h2>
+    <img src='img/Philadelphia.png'  style="width:380px;height:280px; border:3px; border-color:black">
+     <h2 id="title_down2">Detroit</h2>
+    <img src='img/Detroit.jpg'  style="width:380px;height:280px; border:3px; border-color:black">
+      <h2 id="title_down3">Dallas</h2>
+    <img src='img/Dallas1.png'   style="width:380px;height:280px; border:3px; border-color:black">
+    <br>&nbsp;</br>
+          <h2 id="title_down4">Chicago</h2>
+    <img src='img/Chicago.png'   style="width:380px;height:280px; border:3px; border-color:black">
+            <h2 id="title_down5">New York</h2>
+    <img src='img/NewYork.png'   style="width:380px;height:280px; border:3px; border-color:black">
+    
+    --->
+    
+        
+        
+
+<script>
+    
+    /*
+    $("#mainImage").width(window.innerWidth*1);
+     $("#affiliation").width(window.innerWidth*0.985);
+     $("#affiliation").css({top:window.innerHeight*0.8});
+        $("#affiliation").css({height:window.innerHeight*(0.94-0.8)});
+       $("#mainImage").height(window.innerHeight*0.94);
+var width = 960,
+    height = 500;
+
+var projection = d3.geoAlbersUsa();
+var path = d3.geoPath()
+    .projection(projection);
+
+var svg = d3.select("#map").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+d3.json("us.json", function(error, us) {
+
+  svg.append("path")
+      .attr("class", "states")
+      .datum(topojson.feature(us, us.objects.states))
+      .attr("d", path);
+
+  var aa = [-87.65005,41.85003];
+  var bb = [-73.935242, 40.730610];
+ var cc = [-83.045753,42.331429]; 
+  var dd = [-75.146301, 39.952414]; 
+ 
+    var ee = [-96.7969879, 32.7766642]; 
+    var cities=["Chicago","NewYork","Detroit","Philadelphia","Dallas"];
+    
+   svg.selectAll("circle")
+      .data([aa,bb,cc,dd,ee]).enter()
+    .append("a")
+    .attr("xlink:href", function (d,i) { return "../index3.html#"+cities[i];})
+      .append("circle")
+      .attr("cx", function (d) { return projection(d)[0]; })
+      .attr("cy", function (d) { return projection(d)[1]; })
+      .attr("r", "10px")
+      .attr("fill", "#c0a672")
+     .attr("stroke", "black")
+    .on("click",)
+    
+    //index3.html#Dallas
+});
+*/
+</script>
+    </div>
+</section>
+<section id="section5" class="cd-section">
+<div class="content-wrapper">
+     <a class="left" href="#section1">Social Segregation in American Cities</a>
+     <p>&nbsp;</p>
+<h2>Authors</h2>
+     <p>&nbsp;</p>
+<h3>Main developers:</h3>
+       <p>&nbsp;</p>
+   <div class="row">
+
+        <div class="column">
+          <img  src="https://placehold.it/500x600" style="width:180px;height:180px; border:3px; border-color:black">
+          <h5>Olha Buchel, NECSI</h5>
+ 
+          
+        </div>
+        <div class="column">
+          <img class="thumbnail" src="https://placehold.it/500x600" style="width:180px;height:180px; border:3px; border-color:black">
+          <h5>José Balsa-Barreiro, MIT Media Lab</h5>
+      
+    
+        </div>
+        <div class="column">
+          <img class="thumbnail" src="https://placehold.it/500x600" style="width:180px;height:180px; border:3px; border-color:black">
+          <h5>Alfredo Morales, MIT Media Lab</h5>
+  
+  
+        </div>
+        <div class="column">
+          <img class="thumbnail" src="https://placehold.it/500x600" style="width:180px;height:180px; border:3px; border-color:black">
+          <h5>Alex Pentland, MIT Media Lab</h5>
+          
+ 
+        </div>
+  
+    </div>      <p>&nbsp;</p>
+             <h3>Other contributors:</h3>
+       <p>&nbsp;</p>
+    <p>Xiaowen, Oxford University</p>
+
+  
+    <p>&nbsp;</p>
+  <p>&nbsp;</p>
+    <p>&nbsp;</p>   
+    <p>&nbsp;</p>
+  
+  
+    
+</div>
+    
+
+</section>  
+<section id="section6" class="cd-section">
+<div class="content-wrapper">
+<h2>References</h2>
+     <p>&nbsp;</p>
+<p>Segregation and polarization in urban areas.
+A.J. Morales, X. Dong, Y. Bar-Yam, A. ‘Sandy’ Pentland.
+Royal Society Open Science 6 (10), 190573</p>
+
+<p>Segregated interactions in urban and online spaces.
+X. Dong, A.J. Morales, E. Jahani, E. Moro, B. Lepri, B. Bozkaya, C. Sarraute. 
+arXiv preprint arXiv:1911.04027</p>
+
+<p>Purchase patterns, socioeconomic status, and political inclination.
+X. Dong, E. Jahani, A.J. Morales, B. Bozkaya, B. Lepri, A. Pentland.
+The World Bank Economic Review</p>
+    
+      <p>&nbsp;</p>
+    <p>&nbsp;</p>
+  <p>&nbsp;</p>
+        <p>&nbsp;</p>   
+    <p>&nbsp;</p>
+      <p>&nbsp;</p>
+      <p>&nbsp;</p>   
+    <p>&nbsp;</p>
+      <p>&nbsp;</p>
+</div>
+</section>
+    
+
+
+</body>
+</html>

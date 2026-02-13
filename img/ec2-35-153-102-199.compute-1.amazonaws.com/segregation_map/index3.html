@@ -1,0 +1,1850 @@
+<html>
+  <head>
+<title>Twitter networks</title>
+<meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+
+    
+    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.4.1/mapbox-gl.js'></script>
+<link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.4.1/mapbox-gl.css' rel='stylesheet' />
+    <script src='pca_data.js'></script>
+<link rel='stylesheet' href='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.0.9/mapbox-gl-draw.css' type='text/css' />
+<script src='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.0.9/mapbox-gl-draw.js'></script>
+<link type="text/css" rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700">
+<!----<link href='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css' rel='stylesheet' />--->
+   <!--- <script src="l.ellipse.min.js"></script>--->
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/css/foundation.min.css">
+
+
+<link href='map_style.css' rel='stylesheet' />
+</head>
+<body>
+    
+<script src="http://underscorejs.org/underscore-min.js"></script>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+
+
+<script src="//code.jquery.com/jquery-1.11.1.min.js"></script>  
+<!---<script src = "lasso.min.js"></script>-->
+<link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+       <!--- <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js'>
+    </script>--->
+<script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+    
+<script src="http://d3js.org/queue.v1.min.js"></script>
+     <script>$.ajaxPrefilter(function( options, originalOptions, jqXHR ) { options.async = true; });</script>
+<section class="container">
+     
+                        
+<div id="map"></div>
+<div class="map-overlay" id="legend">
+    
+    <div class="row">
+  <div class="column1"><span class="stop_button"><a  href="web/index.html"><< Back</a></span></div>
+  <div class="column2"><select id="select_data"></select></div>
+  <div class="column3">
+      <div id="stop_button" class="stop_button">Clear selecton</div>
+</div>
+    </div>
+   <span id="description">&nbsp;<span style='visibility:hidden;'>.</span></span>
+ <div class="container1"> 
+            <div class="box"> 
+                <div class="box-row"> 
+                    <div class="box-cell box1"> 
+                              
+                        
+   
+       
+        <select id="relationships"><option value="in" selected>In relationships</option><option value="out">Out relationships</option>
+            
+            
+            
+           <!------- <option value="all">All relationships</option>---->
+                        
+                        </select>
+                                                  </div> 
+                    <div class="box-cell box2"> 
+                            <input type="radio" name="network_type" id="mobility" value="mobility" checked/><span>Mobility</span>
+  <input type="radio" id="mentions" value="mentions" name="network_type"><span>Mentions network</span>
+   
+                    </div> 
+                </div> 
+            </div> 
+        </div> 
+         
+    
+    
+         <div id="histo1"></div>
+        <div id="histo"></div> 
+         
+  
+    <br>    
+
+    <p id="legend0"></p>
+        
+    </div>
+    </section>    
+<script>
+var city_centers = {};
+var working_data = [];
+var income_ranges = {};
+var ellipses = [];
+var clickedCircle;
+var current = [];
+var all_data_pca = [];
+var all_coords = [];  
+const width = $("#map").width();
+const height = $("#map").height();
+var first = "yes";
+const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+mapboxgl.accessToken = mapboxToken;
+
+
+var map;
+
+//  CHORD MAPPER 
+    //*******************************************************************
+function chordMpr(data) {
+        var mpr = {},
+            mmap = {},
+            n = 0,
+            matrix = [],
+            filter, accessor;
+
+        mpr.setFilter = function(fun) {
+                filter = fun;
+                return this;
+            },
+            mpr.setAccessor = function(fun) {
+                accessor = fun;
+                return this;
+            },
+            mpr.getMatrix = function() {
+                matrix = [];
+                _.each(mmap, function(a) {
+                    if (!matrix[a.id]) matrix[a.id] = [];
+                    _.each(mmap, function(b) {
+                        var recs = _.filter(data, function(row) {
+                            return filter(row, a, b);
+                        })
+                        matrix[a.id][b.id] = accessor(recs, a, b);
+                    });
+                });
+                return matrix;
+            },
+            mpr.getMap = function() {
+                return mmap;
+            },
+            mpr.printMatrix = function() {
+                _.each(matrix, function(elem) {
+                    console.log(elem);
+                })
+            },
+            mpr.addToMap = function(value, info) {
+                if (!mmap[value]) {
+                    mmap[value] = {
+                        name: value,
+                        id: n++,
+                        data: info
+                    }
+                }
+            },
+            mpr.addValuesToMap = function(varName, info) {
+                var values = _.uniq(_.pluck(data, varName));
+                _.map(values, function(v) {
+                    if (!mmap[v]) {
+                        mmap[v] = {
+                            name: v,
+                            id: n++,
+                            data: info
+                        }
+                    }
+                });
+                return this;
+            }
+        return mpr;
+}
+//*******************************************************************
+//  CHORD READER
+//*******************************************************************
+function initialize() {
+    map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/dark-v10?optimize=true',
+        center: [-82.0589, 42.4],
+        zoom: 10
+    });
+
+    var cities = ["Dallas", "Detroit", "Chicago", "NewYork", "Philadelphia"];
+    var cities2 = ["Dallas", "Detroit", "Chicago", "New York", "Philadelphia"];
+    var html = "";
+    for (var i = 0; i < cities.length; i++) {
+        if (cities[i] == window.location.hash.replace("#", "")) {
+            html += "<option value=" + cities[i] + " selected>" + cities2[i] + "</option>";
+        } else {
+            html += "<option value=" + cities[i] + ">" + cities2[i] + "</option>";
+        }
+    }
+  
+    d3.select("#select_data").html(html);
+    var current_city = "Chicago";
+    city_centers = {
+        "Dallas": [-96.808889, 32.779167],
+        "Detroit": [-83.0589, 42.35],
+        "Chicago": [-87.627778, 41.881944],
+        "NewYork": [-73.944, 40.661],
+        "Philadelphia": [-75.163611, 39.952778]
+    }
+    var circle0;
+    var myScale0 = d3.scaleLinear()
+        .domain([0, 5])
+        .range([2, 3]);
+    
+
+    map.flyTo({
+        center: city_centers[window.location.hash.replace("#", "")]
+    });
+    var Draw = new MapboxDraw();
+    var circles = [];
+    var html2 = "<strong>Income Quantiles</strong>";
+    html2 += "<br><svg height='12' width='12' viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg' version='1.1'><circle cx='6' cy='6' r='5' stroke='#b2182b' stroke-width='2' fill='#b2182b'/></svg> - Q0 ";
+    html2 += "<svg height='12' width='12' viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg' version='1.1'><circle cx='6' cy='6' r='5' stroke='#ef8a62' stroke-width='2' fill='#ef8a62'/></svg> - Q1 ";
+    html2 += "<svg height='12' width='12' viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg' version='1.1'><circle cx='6' cy='6' r='5' stroke='#fddbc7' stroke-width='2' fill='#fddbc7'/></svg> - Q2 ";
+    html2 += "<svg height='12' width='12' viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg' version='1.1'><circle cx='6' cy='6' r='5' stroke='#d1e5f0' stroke-width='2' fill='#d1e5f0'/></svg> - Q3 ";
+    html2 += "<svg height='12' width='12' viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg' version='1.1'><circle cx='6' cy='6' r='5' stroke='#67a9cf' stroke-width='2' fill='#67a9cf'/></svg> - Q4 ";
+    html2 += "<svg height='12' width='12' viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg' version='1.1'><circle cx='6' cy='6' r='5' stroke='#2166ac' stroke-width='2' fill='#2166ac'/></svg> - Q5";
+    html2 += "</div>";
+
+    html2 += "</div>";
+    d3.select("#legend0").html(html2);
+ 
+
+    var colors = ["red", "purple", "pink", "grey"];   
+
+    queue()
+        .defer(d3.json, 'features_' + window.location.hash.replace("#", "") + '.json')
+        .defer(d3.json, 'district_district_mobility_' + window.location.hash.replace("#", "") + '.csv.json')
+        .defer(d3.json, 'district_district_mentions_' + window.location.hash.replace("#", "") + '.csv.json')
+        .await(makeMyMap0);
+}
+
+
+function chordRdr(matrix, mmap) {
+        return function(d) {
+            var i, j, s, t, g, m = {};
+            if (d.source) {
+                i = d.source.index;
+                j = d.target.index;
+                s = _.where(mmap, {
+                    id: i
+                });
+                t = _.where(mmap, {
+                    id: j
+                });
+                m.sname = s[0].name;
+                m.sdata = d.source.value;
+                m.svalue = +d.source.value;
+                m.stotal = _.reduce(matrix[i], function(k, n) {
+                    return k + n
+                }, 0);
+                m.tname = t[0].name;
+                m.tdata = d.target.value;
+                m.tvalue = +d.target.value;
+                m.ttotal = _.reduce(matrix[j], function(k, n) {
+                    return k + n
+                }, 0);
+            } else {
+                g = _.where(mmap, {
+                    id: d.index
+                });
+                m.gname = g[0].name;
+                m.gdata = g[0].data;
+                m.gvalue = d.value;
+            }
+            m.mtotal = _.reduce(matrix, function(m1, n1) {
+                return m1 + _.reduce(n1, function(m2, n2) {
+                    return m2 + n2
+                }, 0);
+            }, 0);
+            return m;
+        }
+    }
+
+function change_data(e) {
+
+    window.location.hash = '#' + document.getElementById("select_data").value;
+    var nam = window.location.hash.replace("#", "");
+    current_city = nam;
+
+    queue()
+        .defer(d3.json, 'features_' + nam + '.json')
+        .defer(d3.json, 'district_district_mobility_' + nam + '.csv.json')
+        .defer(d3.json, 'district_district_mentions_' + nam + '.csv.json')
+        .await(makeMyMap0);
+
+
+}
+
+
+function makeMyMap0(error, data, mobility, mentions) {
+    working_data = data;
+    var incomes = [];
+    for (var i = 0; i < data["features"].length; i++) {
+        incomes.push({
+            "Income": data["features"][i].properties.Income,
+            "Income_Quantile": data["features"][i].properties.Income_Quantile
+        });
+    }
+
+    var nested_income = d3.nest()
+        .key(function(d) {
+            return d.Income_Quantile;
+        })
+        .rollup(function(leaves) {
+            return leaves;
+        })
+        .entries(incomes);
+
+
+    income_ranges[nested_income[0].key] = [d3.min(nested_income[0].value.map(function(d) {
+        return d.Income
+    })), d3.max(nested_income[0].value.map(function(d) {
+        return d.Income
+    }))];
+    income_ranges[nested_income[1].key] = [d3.min(nested_income[1].value.map(function(d) {
+        return d.Income
+    })), d3.max(nested_income[1].value.map(function(d) {
+        return d.Income
+    }))];
+    income_ranges[nested_income[2].key] = [d3.min(nested_income[2].value.map(function(d) {
+        return d.Income
+    })), d3.max(nested_income[2].value.map(function(d) {
+        return d.Income
+    }))];
+    income_ranges[nested_income[3].key] = [d3.min(nested_income[3].value.map(function(d) {
+        return d.Income
+    })), d3.max(nested_income[3].value.map(function(d) {
+        return d.Income
+    }))];
+    income_ranges[nested_income[4].key] = [d3.min(nested_income[4].value.map(function(d) {
+        return d.Income
+    })), d3.max(nested_income[4].value.map(function(d) {
+        return d.Income
+    }))];
+    income_ranges[nested_income[5].key] = [d3.min(nested_income[5].value.map(function(d) {
+        return d.Income
+    })), d3.max(nested_income[5].value.map(function(d) {
+        return d.Income
+    }))];
+    all_coords = data;
+    all_mobility = mobility;
+    all_mentions = mentions;
+    current = mobility;
+    var features0 = data;
+    for (var i = 0; i < 6; i++) {
+        add_layer(features0, i, "Income_Quantile", "")
+    }
+
+
+}
+
+function add_layer(features, vari, label, name) {
+
+
+    if (map.getLayer('earthquakes-heat_' + vari + name)) {
+        map.removeLayer('earthquakes-heat_' + vari + name);
+    }
+    if (map.getLayer('earthquakes-point_' + vari + name)) {
+        map.removeLayer('earthquakes-point_' + vari + name);
+    }
+
+    if (map.getSource('earthquakes' + name + '_' + vari)) {
+        map.removeSource('earthquakes' + name + '_' + vari);
+    }
+
+    map.flyTo({
+        center: city_centers[window.location.hash.replace("#", "")]
+    });
+    var arrayC = ["17031990000", "18089990000", "18091990000", "18089990000", "17031990000", "17097990000", "55059990000", "26163990100", "26099990100", "26147990000", "36005050400", "24029990000"];
+
+    var temp = {};
+    temp["type"] = "FeatureCollection";
+    temp["crs"] = {
+        "type": "name",
+        "properties": {
+            "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+        }
+    };
+    temp["features"] = [];
+    for (var i = 0; i < features["features"].length; i++) {
+        //console.log(features["features"][i]["properties"]);
+        if (name !== "overlay1") {
+            if (features["features"][i]["properties"][label] == vari) {
+                if (arrayC.indexOf(features["features"][i]["properties"]["GEOID"]) == -1) {
+                    var mag = features["features"][i]["properties"][label];
+                    temp["features"].push({
+                        "type": "Feature",
+                        "properties": {
+                            "id": features["features"][i]["properties"]["GEOID"],
+                            "mag": mag,
+                            "time": 1507425650893,
+                            "felt": null,
+                            "income": features["features"][i]["properties"]["income"],
+                            "IQ": features["features"][i]["properties"]["Income_Quantile"]
+                        },
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [features["features"][i]["properties"]["Centroid"][0], features["features"][i]["properties"]["Centroid"][1], 0]
+                        }
+                    });
+
+                }
+            }
+        } else {
+            if (arrayC.indexOf(features["features"][i]["properties"]["GEOID"]) == -1) {
+
+                var mag = features["features"][i]["properties"][label];
+                var mag2 = features["features"][i]["properties"]["Income_Quantile"];
+                //console.log(label,mag,features["features"][i]);
+                temp["features"].push({
+                    "type": "Feature",
+                    "properties": {
+                        "id": features["features"][i]["properties"]["GEOID"],
+                        "mag": mag,
+                        "mag2": mag2,
+                        "time": 1507425650893,
+                        "felt": null,
+                        "income": features["features"][i]["properties"]["income"],
+                        "IQ": features["features"][i]["properties"]["Income_Quantile"]
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [features["features"][i]["properties"]["Centroid"][0], features["features"][i]["properties"]["Centroid"][1], 0]
+                    }
+                });
+            }
+        }
+    }
+
+    map.addSource('earthquakes' + name + '_' + vari, {
+        "type": "geojson",
+        "data": temp
+    });
+    var weight = {
+        property: 'mag',
+        type: 'exponential',
+        stops: [
+            [0, 5],
+            [6, 5]
+        ]
+    };
+    var intensity = {
+        stops: [
+            [11, 1],
+            [12, 1]
+        ]
+    };
+
+
+    var radius = {
+        stops: [
+            [1, 2],
+            [2, 10]
+        ]
+    };
+    var opacity = {
+        default: 0.7,
+        stops: [
+            [23, 0.7],
+            [24, 0]
+        ]
+    };
+
+    if (name !== "overlay1") {
+        if (vari == 5) {
+            map.addLayer({
+                id: 'earthquakes-heat_' + vari + name,
+                type: 'heatmap',
+                source: 'earthquakes' + name + '_' + vari,
+                // maxzoom: 23,
+                paint: {
+                    'heatmap-weight': weight,
+                    'heatmap-intensity': intensity,
+                    'heatmap-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['heatmap-density'],
+                        0, 'rgba(255,255,255,0)',
+                        0.2, 'rgb(145, 161, 184)',
+                        0.4, 'rgb(88, 107, 136)',
+                        0.6, 'rgb(33,102,172)',
+                        0.8, 'rgb(33,102,172)'
+                    ],
+                    'heatmap-radius': radius,
+                    'heatmap-opacity': opacity,
+                }
+            }, 'waterway-label');
+        } else if (vari == 4) {
+            map.addLayer({
+                id: 'earthquakes-heat_' + vari + name,
+                type: 'heatmap',
+                source: 'earthquakes' + name + '_' + vari,
+                // maxzoom: 23,
+                paint: {
+                    'heatmap-weight': weight,
+                    'heatmap-intensity': intensity,
+                    'heatmap-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['heatmap-density'],
+                        0, 'rgba(103,169,207,0)',
+                        0.2, 'rgb(145, 161, 184)',
+                        0.4, 'rgb(103,169,207)',
+                        0.6, 'rgb(103,169,207)',
+                        0.8, 'rgb(103,169,207)'
+                    ],
+                    'heatmap-radius': radius,
+                    'heatmap-opacity': opacity,
+                }
+            }, 'waterway-label');
+        } else if (vari == 3) {
+            map.addLayer({
+                id: 'earthquakes-heat_' + vari + name,
+                type: 'heatmap',
+                source: 'earthquakes' + name + '_' + vari,
+                // maxzoom: 23,
+                paint: {
+                    'heatmap-weight': weight,
+                    'heatmap-intensity': intensity,
+                    'heatmap-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['heatmap-density'],
+                        0, 'rgba(209,229,240,0)',
+                        0.2, 'rgb(145, 161, 184)',
+                        0.4, 'rgb(209,229,240)',
+                        0.6, 'rgb(209,229,240)',
+                        0.8, 'rgb(209,229,240)'
+                    ],
+                    'heatmap-radius': radius,
+                    'heatmap-opacity': opacity,
+                }
+            }, 'waterway-label');
+
+        } else if (vari == 2) {
+            map.addLayer({
+                id: 'earthquakes-heat_' + vari + name,
+                type: 'heatmap',
+                source: 'earthquakes' + name + '_' + vari,
+                paint: {
+                    'heatmap-weight': weight,
+                    'heatmap-intensity': intensity,
+                    'heatmap-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['heatmap-density'],
+                        0, 'rgba(253,219,199,0)',
+                        0.2, 'rgb(145, 161, 184)',
+                        0.4, 'rgb(253,219,199)',
+                        0.6, 'rgb(253,219,199)',
+                        0.8, 'rgb(253,219,199)'
+                    ],
+                    'heatmap-radius': radius,
+                    'heatmap-opacity': opacity,
+                }
+            }, 'waterway-label');
+
+        } else if (vari == 1) {
+            map.addLayer({
+                id: 'earthquakes-heat_' + vari + name,
+                type: 'heatmap',
+                source: 'earthquakes' + name + '_' + vari,
+                // maxzoom: 23,
+                paint: {
+                    'heatmap-weight': weight,
+                    'heatmap-intensity': intensity,
+                    'heatmap-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['heatmap-density'],
+                        0, 'rgba(239,138,98,0)',
+                        0.2, 'rgb(175, 85, 0)',
+                        0.4, 'rgb(239,138,98)',
+                        0.6, 'rgb(239,138,98)',
+                        0.8, 'rgb(239,138,98)'
+                    ],
+                    'heatmap-radius': radius,
+                    'heatmap-opacity': opacity,
+                }
+            }, 'waterway-label');
+
+        } else if (vari == 0) {
+            map.addLayer({
+                id: 'earthquakes-heat_' + vari + name,
+                type: 'heatmap',
+                source: 'earthquakes' + name + '_' + vari,
+                // maxzoom: 23,
+                paint: {
+                    'heatmap-weight': weight,
+                    'heatmap-intensity': intensity,
+                    'heatmap-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['heatmap-density'],
+                        0, 'rgba(178,24,43,0)',
+                        0.2, 'rgb(105, 0, 0)',
+                        0.4, 'rgb(178,24,43)',
+                        0.6, 'rgb(178,24,43)',
+                        0.8, 'rgb(178,24,43)'
+                    ],
+                    'heatmap-radius': radius,
+                    'heatmap-opacity': opacity,
+                }
+            }, 'waterway-label');
+
+
+
+        }
+    }
+
+    if (name !== "overlay1") {
+        var circle_radius = [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            7, [
+                "interpolate",
+                ["linear"],
+                ["get", "mag"],
+                1, 1,
+                6, 2
+            ],
+            16, [
+                "interpolate",
+                ["linear"],
+                ["get", "mag"],
+                1, 1,
+                6, 2
+            ]
+        ];
+
+        var col = [
+            "interpolate",
+            ["linear"],
+            ["get", "mag"],
+            0, "rgb(178,24,43)",
+            1, "rgb(239,138,98)",
+            2, "rgb(253,219,199)",
+            3, "rgb(209,229,240)",
+            4, "rgb(103,169,207)",
+            5, "rgb(33,102,172)"
+        ];
+
+        map.addLayer({
+            "id": "earthquakes-point_" + vari + name,
+            "type": "circle",
+            "source": 'earthquakes' + name + '_' + vari,
+            "minzoom": 1,
+            "paint": {
+                // Size circle radius by earthquake magnitude and zoom level
+                "circle-radius": circle_radius,
+                // Color circle by earthquake magnitude
+                "circle-color": col,
+                "circle-stroke-color": "white",
+                "circle-stroke-width": 5,
+                "circle-stroke-opacity": 0,
+                // Transition from heatmap to circle layer by zoom level
+                "circle-opacity": [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    1, 0,
+                    2, 1
+                ]
+            }
+        }, 'waterway-label');
+
+
+    } else {
+        var circle_radius = [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            7, [
+                "interpolate",
+                ["linear"],
+                ["get", "mag"],
+                0, 3,
+                0.005, 5,
+                0.007, 7,
+                1, 10
+            ],
+            16, [
+                "interpolate",
+                ["linear"],
+                ["get", "mag"],
+                0, 3,
+                0.005, 5,
+                0.007, 7,
+                1, 10
+            ]
+        ];
+
+
+        var col = [
+            "interpolate",
+            ["linear"],
+            ["get", "mag2"],
+            0, "rgb(178,24,43)", 
+            1, "rgb(239,138,98)",
+            2, "rgb(253,219,199)",
+            3, "rgb(209,229,240)",
+            4, "rgb(103,169,207)",
+            5, "rgb(33,102,172)"
+        ];
+
+
+
+        map.addLayer({
+            "id": "earthquakes-point_" + vari + name,
+            "type": "circle",
+            "source": 'earthquakes' + name + '_' + vari,
+            "minzoom": 1,
+            "paint": {
+                // Size circle radius by earthquake magnitude and zoom level
+                "circle-radius": circle_radius,
+                // Color circle by earthquake magnitude
+                "circle-color": col,
+                "circle-stroke-color": "grey",
+                "circle-stroke-width": 0.5,
+                "circle-stroke-opacity": 1,
+                // Transition from heatmap to circle layer by zoom level
+                "circle-opacity": [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    1, 0,
+                    2, 1
+                ]
+            }
+        }, 'waterway-label');
+    }
+
+    map.on('click', "earthquakes-point_" + vari, function(e) {
+
+        if (clickedCircle == e.features[0].properties.id) {
+            click_s();
+            clickedCircle = "";
+
+        } else {
+            clickedCircle = e.features[0].properties.id;
+            clickedCircle1(clickedCircle);
+        }
+    });
+}
+
+function add_layer2(features) {
+    if (map.getLayer('overlay2')) {
+        map.removeLayer('overlay2');
+    }
+
+    if (map.getSource('overlay22')) {
+        map.removeSource('overlay22');
+    }
+
+    var temp = {};
+    temp["type"] = "FeatureCollection";
+    temp["crs"] = {
+        "type": "name",
+        "properties": {
+            "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+        }
+    };
+    temp["features"] = [];
+    for (var i = 0; i < features["features"].length; i++) {
+
+        var mag = features["features"][i]["properties"]["weight"];
+        var mag2 = features["features"][i]["properties"]["Income_Quantile"];
+        //console.log(label,mag,features["features"][i]);
+        temp["features"].push({
+            "type": "Feature",
+            "properties": {
+                "id": features["features"][i]["properties"]["GEOID"],
+                "mag": mag,
+                "mag2": mag2,
+                "time": 1507425650893,
+                "felt": null,
+                "income": features["features"][i]["properties"]["income"],
+                "IQ": features["features"][i]["properties"]["Income_Quantile"]
+            },
+            "geometry": {
+                "type": "Point",
+                "coordinates": [features["features"][i]["properties"]["Centroid"][0], features["features"][i]["properties"]["Centroid"][1], 0]
+            }
+        });
+
+
+    }
+
+
+    map.addSource('overlay22', {
+        "type": "geojson",
+        "data": temp
+    });
+    var circle_radius = [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        7, [
+            "interpolate",
+            ["linear"],
+            ["get", "mag"],
+            0, 3,
+            0.005, 5,
+            0.007, 7,
+            1, 10
+        ],
+        16, [
+            "interpolate",
+            ["linear"],
+            ["get", "mag"],
+            0, 3,
+            0.005, 5,
+            0.007, 7,
+            1, 10
+        ]
+    ];
+
+    var col = [
+        "interpolate",
+        ["linear"],
+        ["get", "mag2"],
+        0, "rgb(178,24,43)", //rgb(178,24,43)
+        1, "rgb(239,138,98)",
+        2, "rgb(253,219,199)",
+        3, "rgb(209,229,240)",
+        4, "rgb(103,169,207)",
+        5, "rgb(33,102,172)"
+    ];
+
+
+    map.addLayer({
+        'id': 'overlay2',
+        'type': 'circle',
+        'source': "overlay22",
+        'paint': {
+            'circle-radius': circle_radius,
+            'circle-opacity': 1,
+            'circle-color': col,
+            "circle-stroke-color": "grey",
+            "circle-stroke-width": 0.5
+        }
+    });
+
+
+}
+
+function clickedCircle1(e) {
+    var arr = d3.map(current[clickedCircle]).values();
+    var summ = [];
+    var ids = [];
+    var pairs = {};
+    for (var i = 0; i < arr.length; i++) {
+        ids.push(arr[i]["ID"].toString());
+        summ.push(arr[i]["Weight"]);
+        pairs[arr[i]["ID"].toString()] = arr[i]["Weight"];
+    }
+    pairs[clickedCircle] = d3.sum(summ);
+
+    if (first == "yes") {
+        map.setPaintProperty('earthquakes-heat_1', 'heatmap-opacity', {
+            default: 0.3,
+            stops: [
+                [23, 0.3],
+                [24, 0]
+            ]
+        });
+        map.setPaintProperty('earthquakes-heat_0', 'heatmap-opacity', {
+            default: 0.3,
+            stops: [
+                [23, 0.3],
+                [24, 0]
+            ]
+        });
+        map.setPaintProperty('earthquakes-heat_2', 'heatmap-opacity', {
+            default: 0.3,
+            stops: [
+                [23, 0.3],
+                [24, 0]
+            ]
+        });
+        map.setPaintProperty('earthquakes-heat_3', 'heatmap-opacity', {
+            default: 0.3,
+            stops: [
+                [23, 0.3],
+                [24, 0]
+            ]
+        });
+        map.setPaintProperty('earthquakes-heat_4', 'heatmap-opacity', {
+            default: 0.3,
+            stops: [
+                [23, 0.3],
+                [24, 0]
+            ]
+        });
+        map.setPaintProperty('earthquakes-heat_5', 'heatmap-opacity', {
+            default: 0.3,
+            stops: [
+                [23, 0.3],
+                [24, 0]
+            ]
+        });
+    }
+    first == "no";
+    if (map.getLayer('earthquakes-heat_0overlay1')) map.removeLayer('earthquakes-heat_0overlay1');
+    if (map.getLayer('earthquakes-point_0overlay1')) map.removeLayer('earthquakes-point_0overlay1');
+    if (map.getSource('earthquakesoverlay1_0')) map.removeSource('earthquakesoverlay1_0');
+
+    var main_coords = {};
+    var other_coords = {};
+    var feature_collection = {
+        type: "FeatureCollection"
+    };
+    feature_collection["features"] = [];
+    var feats = [];
+    var weights = [];
+    for (var i = 0; i < all_coords["features"].length; i++) {
+        if (all_coords["features"][i]["properties"]["GEOID"].toString() == clickedCircle.toString()) {
+            all_coords["features"][i]["properties"]["weight"] = 1;
+            // weights.push(1); 
+            all_coords["features"][i]["properties"]["weight0"] = d3.sum(summ);
+            main_coords[clickedCircle] = all_coords["features"][i];
+            feats.push(all_coords["features"][i]);
+        } else if (ids.indexOf(all_coords["features"][i]["properties"]["GEOID"].toString()) > -1) {
+            weights.push(pairs[all_coords["features"][i]["properties"]["GEOID"].toString()] / d3.sum(summ));
+            all_coords["features"][i]["properties"]["weight"] = pairs[all_coords["features"][i]["properties"]["GEOID"].toString()] / d3.sum(summ);
+            other_coords[ids[ids.indexOf(all_coords["features"][i]["properties"]["GEOID"].toString())]] = all_coords["features"][i];
+            feats.push(all_coords["features"][i]);
+        }
+    }
+    feature_collection["features"] = feats;
+    add_layer2(feature_collection);
+    var id = clickedCircle;
+    if (d3.select('input[name="network_type"]:checked').node().value == "mobility") {
+        var current_array = all_mobility;
+    } else {
+        var current_array = all_mentions;
+    }
+    var all_links = current_array[id];
+    var all_incomes = [];
+    for (var i = 0; i < current_array[id].length; i++) {
+        for (var y = 0; y < all_coords["features"].length; y++) {
+            if (current_array[id][i].ID == all_coords.features[y].properties.GEOID) {
+                for (var z = 1; z <= current_array[id][i].Weight; z++) {
+                    all_incomes.push({
+                        Income: all_coords.features[y].properties.Income,
+                        Income_Quantile: all_coords.features[y].properties.Income_Quantile
+                    });
+
+                }
+            }
+        }
+    }
+    var id_quantileA;
+    for (var y = 0; y < all_coords["features"].length; y++) {
+
+        if (id == all_coords.features[y].properties.GEOID) {
+            // console.log(id_quantile);
+            id_quantileA = all_coords.features[y].properties.Income_Quantile;
+
+        }
+    }
+    var matrixA = [];
+    for (var i = 0; i < all_incomes.length; i++) {
+        matrixA.push({
+            root: "root" /*_"+id_quantileA*/ ,
+            node: "Q_" + all_incomes[i].Income_Quantile
+        });
+    }
+    var nested_data = d3.nest()
+        .key(function(d) {
+            return d.root + "/" + d.node;
+        })
+        .sortKeys(d3.ascending)
+        .rollup(function(leaves) {
+            return leaves.length;
+        })
+        .entries(matrixA);
+
+
+    var matrixAL = [];
+
+    for (var i = 0; i < nested_data.length; i++) {
+        matrixAL.push({
+            root: nested_data[i].key.split("/")[1],
+            node: nested_data[i].key.split("/")[0],
+            count: nested_data[i].value
+        });
+    }
+
+    var all_incomes_op = {};
+    all_incomes_op[id] = [];
+    var all_keys = d3.keys(current_array);
+    for (var i = 0; i < all_keys.length; i++) {
+        if (d3.values(current_array[all_keys[i]]).map(function(d) {
+                return d.ID
+            }).indexOf(id) > -1) {
+
+
+            var vals = current_array[all_keys[i]][d3.values(current_array[all_keys[i]]).map(function(d) {
+                return d.ID
+            }).indexOf(id)];
+            for (var y = 0; y < all_coords["features"].length; y++) {
+                if (all_keys[i] == all_coords.features[y].properties.GEOID) {
+                    for (var z = 1; z <= current_array[all_keys[i]][d3.values(current_array[all_keys[i]]).map(function(d) {
+                            return d.ID
+                        }).indexOf(id)].Weight; z++) {
+                        all_incomes_op[id].push({
+                            "Income": all_coords.features[y].properties.Income,
+                            "Income_Quantile": all_coords.features[y].properties.Income_Quantile
+                        });
+
+                    }
+                }
+            }
+
+        }
+    }
+
+
+    var matrixB = [];
+    for (var i = 0; i < all_incomes_op[id].length; i++) {
+        matrixB.push({
+            root: "root_" + id_quantileA,
+            node: "Q_" + all_incomes_op[id][i].Income_Quantile
+        });
+    }
+    var nested_dataB = d3.nest()
+        .key(function(d) {
+            return d.root + "/" + d.node;
+        })
+        .sortKeys(d3.ascending)
+        .rollup(function(leaves) {
+            return leaves.length;
+        })
+        .entries(matrixB);
+    var matrixBL = [];
+
+    for (var i = 0; i < nested_dataB.length; i++) {
+        matrixBL.push({
+            root: nested_dataB[i].key.split("/")[0],
+            node: nested_dataB[i].key.split("/")[1],
+            count: nested_dataB[i].value
+        });
+    }
+
+    if ($("#relationships").val() == "in") {
+        draw_histogram(all_incomes);
+        draw_chord(matrixAL, "in");
+
+    } else if ($("#relationships").val() == "out") {
+        draw_histogram(all_incomes_op[id]);
+        draw_chord(matrixBL, "out");
+        console.log(matrixBL);
+
+    } else {
+        var third = all_incomes.concat(all_incomes_op[id]);
+        draw_histogram(third);
+        draw_chord(matrixAL.concat(matrixBL), "all");
+    }
+    d3.selectAll(".red0").style("opacity", 0.3).style("stroke-width", 1);
+    d3.selectAll(".red1").style("opacity", 0.3).style("stroke-width", 1);
+    d3.selectAll(".red2").style("opacity", 0.3).style("stroke-width", 1);
+    d3.selectAll(".red3").style("opacity", 0.3).style("stroke-width", 1);
+    d3.selectAll(".red4").style("opacity", 0.3).style("stroke-width", 1);
+    d3.selectAll(".red5").style("opacity", 0.3).style("stroke-width", 1);
+    d3.selectAll(".sm_m3").style("opacity", 0);
+    d3.select("#stop_button").style("opacity", 1).style("stroke-width", 1);
+    var myScale = d3.scaleLinear();
+    myScale
+        .domain(d3.extent(current[id].map(function(f) {
+            return f.Weight
+        }), function(d) {
+            return d
+        }))
+        .range([10, 25]);
+    d3.select("#description").html("GEOID: " + id);
+    for (var i = 0; i < current[id].length; i++) {
+        d3.selectAll(".m3" + current[id][i].ID).style("opacity", 1).style("stroke-opacity", 1).style("stroke-width", 5); //.style("stroke-opacity",);
+        d3.selectAll(".m" + current[id][i].ID).style("opacity", 1).style("stroke-opacity", 1).style("stroke-width", 5); //.style("stroke-opacity",);
+    }
+}
+
+
+//}
+
+
+
+
+function click_f() {
+    //alert(d3.select('input[name="network_type"]:checked').node().value);
+    if (d3.select('input[name="network_type"]:checked').node().value == "mobility") {
+        current = all_mobility;
+    } else {
+        current = all_mentions;
+    }
+    //  console.log(clickedCircle);
+    if (typeof clickedCircle !== "undefined") {
+
+//console.log(clickedCircle);
+        //trigger
+        clickedCircle1(clickedCircle);
+    }
+}
+
+function click_s() {
+
+    d3.select("#histo").html("");
+    d3.select("#histo1").html("");
+    d3.select("#description").html("&nbsp;<span style='visibility:hidden;'>.</span>");
+
+    first = "yes";
+
+    map.setPaintProperty('earthquakes-heat_1', 'heatmap-opacity', {
+        default: 0.3,
+        stops: [
+            [23, 0.7],
+            [24, 0]
+        ]
+    });
+    map.setPaintProperty('earthquakes-heat_0', 'heatmap-opacity', {
+        default: 1,
+        stops: [
+            [23, 0.7],
+            [24, 0]
+        ]
+    });
+    map.setPaintProperty('earthquakes-heat_2', 'heatmap-opacity', {
+        default: 1,
+        stops: [
+            [23, 0.7],
+            [24, 0]
+        ]
+    });
+    map.setPaintProperty('earthquakes-heat_3', 'heatmap-opacity', {
+        default: 1,
+        stops: [
+            [23, 0.7],
+            [24, 0]
+        ]
+    });
+    map.setPaintProperty('earthquakes-heat_4', 'heatmap-opacity', {
+        default: 1,
+        stops: [
+            [23, 0.7],
+            [24, 0]
+        ]
+    });
+    map.setPaintProperty('earthquakes-heat_5', 'heatmap-opacity', {
+        default: 1,
+        stops: [
+            [23, 0.7],
+            [24, 0]
+        ]
+    });
+
+    if (map.getLayer('earthquakes-heat_0overlay1')) map.removeLayer('earthquakes-heat_0overlay1');
+    if (map.getLayer('earthquakes-point_0overlay1')) map.removeLayer('earthquakes-point_0overlay1');
+    //if (map.getSource('earthquakes-point_0overlay1')) map.removeSource('earthquakes-point_0overlay1');
+    if (map.getSource('earthquakesoverlay1_0')) map.removeSource('earthquakesoverlay1_0');
+    //console.log(map.getStyle().layers);
+    //clickedCircle1("");
+    //earthquakes-point
+   
+
+    d3.select("#stop_button").style("opacity", 1);
+
+}
+function click_s1() {
+
+d3.select("#histo").html("");
+d3.select("#histo1").html("");
+d3.select("#description").html("&nbsp;<span style='visibility:hidden;'>.</span>");
+
+first = "yes";
+
+map.setPaintProperty('earthquakes-heat_1', 'heatmap-opacity', {
+    default: 0.3,
+    stops: [
+        [23, 0.7],
+        [24, 0]
+    ]
+});
+map.setPaintProperty('earthquakes-heat_0', 'heatmap-opacity', {
+    default: 1,
+    stops: [
+        [23, 0.7],
+        [24, 0]
+    ]
+});
+map.setPaintProperty('earthquakes-heat_2', 'heatmap-opacity', {
+    default: 1,
+    stops: [
+        [23, 0.7],
+        [24, 0]
+    ]
+});
+map.setPaintProperty('earthquakes-heat_3', 'heatmap-opacity', {
+    default: 1,
+    stops: [
+        [23, 0.7],
+        [24, 0]
+    ]
+});
+map.setPaintProperty('earthquakes-heat_4', 'heatmap-opacity', {
+    default: 1,
+    stops: [
+        [23, 0.7],
+        [24, 0]
+    ]
+});
+map.setPaintProperty('earthquakes-heat_5', 'heatmap-opacity', {
+    default: 1,
+    stops: [
+        [23, 0.7],
+        [24, 0]
+    ]
+});
+
+if (map.getLayer('earthquakes-heat_0overlay1')) map.removeLayer('earthquakes-heat_0overlay1');
+//if (map.getLayer('earthquakes-point_0overlay1')) map.removeLayer('earthquakes-point_0overlay1');
+if (map.getSource('earthquakesoverlay1_0')) map.removeSource('earthquakesoverlay1_0');
+//console.log(map.getStyle().layers);
+//clickedCircle1("");
+//earthquakes-point
+var circle_radius = [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            7, [
+                "interpolate",
+                ["linear"],
+                ["get", "mag"],
+                0, 0,
+                0.000, 0,
+                0.000, 0,
+                0, 0
+            ],
+            16, [
+                "interpolate",
+                ["linear"],
+                ["get", "mag"],
+                0, 0,
+                0.000, 0,
+                0.000, 0,
+                0, 0
+            ]
+        ];
+for (var i=0; i<map.getStyle().layers.length; i++) {
+      if (map.getStyle().layers[i]["id"].indexOf("point")>-1) {
+        //console.log(map.getStyle().layers[i]["id"]);
+      //  console.log(typeof(map.getSource(map.getStyle().layers[i]["source"])));
+      //  if (map.getSource(map.getStyle().layers[i]["source"])) map.removeSource(map.getStyle().layers[i]["source"]);
+       // if (map.getLayer(map.getStyle().layers[i]["id"])) map.removeLayer(map.getStyle().layers[i]["id"]);
+      //map.removeLayer(map.getStyle().layers[i]["id"]);
+     // map.setLayerSource(map.getStyle().layers[i]["source"], {'type': 'geojson','data': {}})
+     // map.getSource(map.getStyle().layers[i]["source"]).setData({'type': 'geojson','data': {'type': 'FeatureCollection','features': []}});
+var ttemp=map.getSource(map.getStyle().layers[i]["source"]);
+console.log(ttemp);
+   /*  for (var y=0; y<ttemp._data.features.length; y++){
+
+      ttemp._data.features[y]["properties"]["mag"]=0;
+}*/
+//map.getSource(map.getStyle().layers[i]["source"]).setData(ttemp);
+if (typeof(map.getStyle().layers[i]["id"])!="undefined") {
+map.setPaintProperty(map.getStyle().layers[i]["id"], 'circle-radius',0);
+    }
+  }
+  }
+/*
+ for (var i=0; i<map.getStyle().layers.length; i++) {
+ if (map.getStyle().layers[i]["id"].indexOf("earthquakes-point")>-1) {
+    //console.log(map.getStyle().layers[i]["id"]);
+  //  console.log(typeof(map.getSource(map.getStyle().layers[i]["source"])));
+  //  if (map.getSource(map.getStyle().layers[i]["source"])) map.removeSource(map.getStyle().layers[i]["source"]);
+   // if (map.getLayer(map.getStyle().layers[i]["id"])) map.removeLayer(map.getStyle().layers[i]["id"]);
+  //map.removeLayer(map.getStyle().layers[i]["id"]);
+ // map.setLayerSource(map.getStyle().layers[i]["source"], {'type': 'geojson','data': {}})
+ // map.getSource(map.getStyle().layers[i]["source"]).setData({'type': 'geojson','data': {'type': 'FeatureCollection','features': []}});
+var ttemp=map.getSource(map.getStyle().layers[i]["source"]);
+console.log(ttemp);
+ for (var y=0; y<ttemp._data.features.length; y++){
+
+  ttemp._data.features[y]["properties"]["mag"]=0;
+}
+map.getSource(map.getStyle().layers[i]["source"]).setData(ttemp._data);
+}
+}
+*/
+
+
+/*
+ map.addLayer({
+            "id": "earthquakes-point_" + vari + name,
+            "type": "circle",
+            "source": 'earthquakes' + name + '_' + vari,
+            "minzoom": 1,
+            "paint": {
+                // Size circle radius by earthquake magnitude and zoom level
+                "circle-radius": circle_radius,
+                // Color circle by earthquake magnitude
+                "circle-color": col,
+                "circle-stroke-color": "grey",
+                "circle-stroke-width": 0.5,
+                "circle-stroke-opacity": 1,
+                // Transition from heatmap to circle layer by zoom level
+                "circle-opacity": [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    1, 0,
+                    2, 1
+                ]
+            }
+        }, 'waterway-label');
+    }
+
+*/
+d3.select("#stop_button").style("opacity", 1);
+
+}
+function click_e() {
+    for (var i = 0; i < ellipses.length; i++) {
+        map.removeLayer(ellipses[i]);
+    }
+}
+function distance1(lat1, lon1, lat2, lon2, unit) {
+    var radlat1 = Math.PI * lat1 / 180
+    var radlat2 = Math.PI * lat2 / 180
+    var theta = lon1 - lon2
+    var radtheta = Math.PI * theta / 180
+    var dist = Math.sin(radlat1) * Math.sin(radlat2) + Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
+    if (dist > 1) {
+        dist = 1;
+    }
+    dist = Math.acos(dist)
+    dist = dist * 180 / Math.PI
+    dist = dist * 60 * 1.1515
+    if (unit == "K") {
+        dist = dist * 1.609344
+    }
+    if (unit == "N") {
+        dist = dist * 0.8684
+    }
+    return dist;
+}
+
+function inRange(x, min, max) {
+    return ((x - min) * (x - max) <= 0);
+}
+
+function draw_histogram(data) {
+
+    d3.select("#histo").html("");
+    var margin2 = {
+            top: 20,
+            right: 10,
+            bottom: 10,
+            left: 10
+        },
+        width = 280 - margin2.left - margin2.right,
+        height2 = 160 - margin2.top - margin2.bottom,
+        svg2 = d3.select("#histo").append("svg").attr("width", width).attr("height", height2),
+        g = svg2.append("g").attr("transform", "translate(" + margin2.left + "," + (-1 * margin2.top) + ")");
+    data.forEach(function(d) {
+        d.Income = +d.Income;
+    });
+
+    var values = data.map(function(d) {
+        return d.Income
+    });
+
+
+    var x = d3.scaleLinear()
+        .domain(d3.extent(values))
+        .rangeRound([0, width - 10]);
+    // .nice();
+
+    var histogram = d3.histogram()
+        .domain(x.domain())
+        .thresholds(d3.range(1, x.domain()[1], (x.domain()[1] - 1) / 10));
+
+    var bins = histogram(values);
+    var yiy = [];
+
+    for (var f = 0; f < bins.length; f++) {
+        yiy.push(bins[f].length);
+    }
+    //console.log(yiy);
+    var y = d3.scaleLinear()
+        .domain([0, (d3.max(yiy) + 5)])
+        .range([height2, 30]);
+
+    var bar = g.selectAll(".bar")
+        .data(bins)
+        .enter().append("g")
+        //.attr("class", "bar")
+        .attr("transform", function(d) {
+            return "translate(" + x(d.x0) + "," + y(d.length) + ")"; //y(Math.log(d.length+1))
+        });
+    bar.append("rect")
+        .style("fill", function(d) {
+            if (d.x0 >= income_ranges["0"][0] && d.x1 < income_ranges["1"][0]) {
+                //console.log("0",d.x0,d.x1);
+                return "#b2182b"; //#ffffb2";
+            } else if (d.x0 >= income_ranges["1"][0] && d.x1 <= income_ranges["2"][0]) {
+                //console.log("1",d.x0,d.x1);
+                return "#ef8a62"; //#fed976";
+            } else if (d.x0 >= income_ranges["2"][0] && d.x1 <= income_ranges["3"][0]) {
+                //console.log("2",d.x0,d.x1);
+                return "#fddbc7"; //#feb24c";
+            } else if (d.x0 >= income_ranges["3"][0] && d.x1 <= income_ranges["4"][0]) {
+                //console.log("3",d.x0,d.x1);
+                return "#d1e5f0"; //#fd8d3c";
+            } else if (d.x0 >= income_ranges["4"][0] && d.x1 <= income_ranges["5"][0]) {
+                //console.log("4",d.x0,d.x1);
+                return "#67a9cf"; //#f03b20";
+            } else if (d.x0 >= income_ranges["5"][0] && d.x1 <= income_ranges["5"][1] + 1000) {
+                //console.log("5",d.x0,d.x1);
+                return "#2166ac"; //#bd0026";
+
+
+
+
+            } else {
+
+                //#b2182b,#ef8a62,#fddbc7,#d1e5f0,#67a9cf,#2166ac
+                if (inRange(d.x0, income_ranges["0"][0], income_ranges["1"][0])) {
+                    return "#b2182b"; //#ffffb2";
+
+                } else if (inRange(d.x0, income_ranges["1"][0], income_ranges["2"][0])) {
+                    return "#ef8a62"; //#fed976";       
+
+                } else if (inRange(d.x0, income_ranges["2"][0], income_ranges["3"][0])) {
+                    return "#fddbc7"; //#feb24c";     
+
+                } else if (inRange(d.x0, income_ranges["3"][0], income_ranges["4"][0])) {
+                    return "#d1e5f0"; //#fd8d3c";     
+
+                } else if (inRange(d.x0, income_ranges["4"][0], income_ranges["5"][0])) {
+                    return "#67a9cf"; //#f03b20";  
+
+                } else if (inRange(d.x0, income_ranges["5"][0], income_ranges["5"][1] + 1000)) {
+                    return "#2166ac"; //#bd0026"; 
+
+                }
+            }
+            //  console.log(d.x0,d.x1);
+            // return "steelblue";
+        })
+        .attr("x", 1)
+        .attr("width", 20) //x(bins[1].x1) - x(bins[1].x0) -2
+        .attr("height", function(d) {
+            return height2 - y(d.length);
+        });
+
+    bar.append("text")
+        .style("fill", "#ccc")
+        .style("font", "10px sans-serif")
+        .attr("dy", ".75em")
+        .attr("y", -10)
+        .attr("x", 5) //(x(bins[1].x1) - x(bins[1].x0)) / 2
+        .attr("text-anchor", "middle")
+        .text(function(d) {
+            return d.length;
+        });
+    var axis = d3.axisBottom(x)
+        .ticks(10);
+    g.append("g")
+        .attr("class", "axis axis--x")
+        .attr("transform", "translate(0," + height2 + ")")
+        .call(d3.axisBottom(x).ticks(8).tickFormat(d3.format(".2s")));
+
+    //console.log(d3.keys(bins));
+    var exzero = [];
+    var exone = [];
+    var ys = [];
+    for (var t = 0; t < d3.keys(bins).length; t++) {
+        exzero.push(bins[d3.keys(bins)[t]].x0);
+        exone.push(bins[d3.keys(bins)[t]].x1);
+        ys.push(bins[d3.keys(bins)[t]].length);
+    }
+
+    //console.log(exzero.toString());
+    //console.log(exzero);
+    //console.log(ys);
+    var line = d3.line()
+        .x(function(d, i) {
+            return x(d.x);
+        }) // set the x values for the line generator
+        .y(function(d) {
+            return y(d.y);
+        })
+        .curve(d3.curveMonotoneX); // set the y values for the line generator 
+    $.ajax({
+        url: "get_data.php",
+        async: false,
+        type: "POST",
+        data: {
+            'x': exzero,
+            'y': ys
+        },
+        success: function(response0) {
+         // console.log(response0.indexOf("{"));
+          //console.log(response0);  typeof(response0)=="string" && 
+          if (response0.indexOf("[")>-1) {
+            var data1 = JSON.parse(response0);
+            //console.log(JSON.parse(response0)[0]);
+            var data2 = [];
+            for (var y = 0; y < data1[0].length; y++) {
+
+                data2.push({
+                    x: data1[0][y],
+                    y: data1[1][y]
+                });
+            }
+
+            // console.log(data2);
+            g.append("path")
+                .datum(data2) // 10. Binds data to the line 
+                .attr("class", "line") // Assign a class for styling 
+                //  .interpolate("basis")  
+                .attr("d", line); // 11. Calls the line gener
+
+
+          }
+
+        }
+    });
+
+
+
+
+}
+
+function draw_chord(data, val) {
+    // console.log(data,chordMpr(data));
+
+    var mpr = chordMpr(data);
+
+    mpr
+        .addValuesToMap('root')
+        .addValuesToMap('node')
+        .setFilter(function(row, a, b) {
+            return (row.root === a.name && row.node === b.name)
+        })
+        .setAccessor(function(recs, a, b) {
+            if (!recs[0]) return 0;
+            return +recs[0].count;
+        });
+    drawChords(mpr.getMatrix(), mpr.getMap(), data, val);
+}
+function drawChords(matrix, mmap, data, val) {
+    d3.select("#histo1").html("");
+    //console.log(mmap);
+    var colors = ["#b2182b", "#ef8a62", "#fddbc7", "#d1e5f0", "#67a9cf", "#2166ac"];
+    var colors0 = ["#b2182b", "#ef8a62", "#fddbc7", "#d1e5f0", "#67a9cf", "#2166ac"];
+
+
+    // var colors0 =colors;
+    //["#ffffb2","#fed976","#feb24c","#fd8d3c","#f03b20","#bd0026"];
+    var colors1 = ["#2166ac", "#67a9cf", "#d1e5f0", "#fddbc7", "#ef8a62", "#b2182b"];
+    ///colors.reverse();
+    var colors9 = {
+        "0": "#b2182b",
+        "1": "#ef8a62",
+        "2": "#fddbc7",
+        "3": "#d1e5f0",
+        "4": "#67a9cf",
+        "5": "#2166ac"
+
+    }
+
+    var w = 310,
+        h = 310,
+        r1 = h / 2 - 25,
+        r0 = r1 - 15;
+
+    var chord = d3.chord()
+        .padAngle(0.05)
+        .sortSubgroups(d3.descending)
+        .sortChords(d3.descending);
+
+
+
+
+    var chordss = chord(matrix);
+
+    var arc = d3.arc()
+        .innerRadius(r0)
+        .outerRadius(r0 + 5);
+
+    var ribbon = d3.ribbon()
+        .radius(r0);
+
+    var svg = d3.select("#histo1").append("svg:svg")
+        .attr("width", w)
+        .attr("height", h)
+        .append("svg:g")
+        .attr("id", "circle")
+        .attr("transform", "translate(" + w / 2 + "," + h / 2 + ")")
+        .datum(chord(matrix));
+
+    var wrapper = svg.append("g")
+        .attr("transform", "translate(" + w / 2 + "," + h / 2 + ")")
+
+    var outerRadius = Math.min(w, h) * 0.5 - 55
+    var innerRadius = outerRadius - 30
+
+
+
+
+    svg.append("circle")
+        .attr("r", r0 + 20);
+
+    var mapReader = chordRdr(matrix, mmap);
+
+
+    var g = svg.selectAll("g.group")
+        .data(function(chords) {
+            return chords.groups;
+        })
+        .enter().append("svg:g")
+        .attr("class", "group")
+
+
+    var arra = [];
+
+    g.append("svg:path")
+        .style("stroke", "grey")
+        .style("fill", function(d, i) {
+            if (val == "in") {
+                return colors[d.index];
+
+            } else if (val == "out") {
+
+                if (mapReader(d).gname.indexOf("root") > -1) {
+
+                    return colors[Number(mapReader(d).gname.split("_")[1])];
+                } else {
+
+
+                    return colors1[d.index];
+                }
+            } else {
+
+
+                if (mapReader(d).gname.indexOf("root") > -1) {
+                    colors9["6"] = colors[Number(mapReader(d).gname.split("_")[1])];
+                    arra.push(6);
+                    return colors[Number(mapReader(d).gname.split("_")[1])];
+                }
+
+
+                if (mapReader(d).gname.indexOf("Q_") > -1) {
+                    arra.push(Number(mapReader(d).gname.split("_")[1]));
+                    return colors[Number(mapReader(d).gname.split("_")[1])];
+                }
+            }
+        })
+        .attr("d", arc);
+
+    arra.sort(function(a, b) {
+        return a - b;
+    });
+
+    var colors10 = [];
+    for (var i = 0; i < arra.length; i++) {
+
+        colors10.push(colors9[arra[i].toString()]);
+    }
+    if (arra.length == 6) {
+        console.log(arra);
+    }
+    if (arra.indexOf(0) == -1 && arra.length == 6) {
+        arra = [0, 1, 2, 3, 4, 5];
+
+    }
+
+    var color = d3.scaleOrdinal()
+        .domain(arra)
+        .range(colors10);
+
+
+    function getGradID(d) {
+        return "linkGrad-" + (d.source.index) + "-" + (d.target.index);
+    }
+    // function getGradID1(d){ return "linkGrad-" + d[0] + "-" + d[1]; }      
+
+    var grads = svg.append("defs")
+        .selectAll("linearGradient")
+        .data(chordss)
+        .enter()
+        .append("linearGradient")
+        .attr("id", getGradID)
+        .attr("gradientUnits", "userSpaceOnUse")
+        .attr("x1", function(d, i) {
+            return innerRadius * Math.cos((d.source.endAngle - d.source.startAngle) / 2 + d.source.startAngle - Math.PI / 2);
+        })
+        .attr("y1", function(d, i) {
+            return innerRadius * Math.sin((d.source.endAngle - d.source.startAngle) / 2 + d.source.startAngle - Math.PI / 2);
+        })
+        .attr("x2", function(d, i) {
+            return innerRadius * Math.cos((d.target.endAngle - d.target.startAngle) / 2 + d.target.startAngle - Math.PI / 2);
+        })
+        .attr("y2", function(d, i) {
+            return innerRadius * Math.sin((d.target.endAngle - d.target.startAngle) / 2 + d.target.startAngle - Math.PI / 2);
+        })
+
+    // set the starting color (at 0%)
+
+    grads.append("stop")
+        .attr("offset", "0%")
+        .attr("stop-color", function(d) {
+            return color(d.source.index)
+        })
+
+    //set the ending color (at 100%)
+    grads.append("stop")
+        .attr("offset", "100%")
+        .attr("stop-color", function(d) {
+            return color(d.target.index)
+        })
+
+
+
+
+    g.append("svg:text")
+        .each(function(d) {
+            d.angle = (d.startAngle + d.endAngle) / 2;
+        })
+        .attr("dy", ".35em")
+        .style("font-family", "helvetica, arial, sans-serif")
+        .style("font-size", "9px")
+        .attr("text-anchor", function(d) {
+            return d.angle > Math.PI ? "end" : null;
+        })
+        .attr("transform", function(d) {
+            return "rotate(" + (d.angle * 180 / Math.PI - 90) + ")" +
+                "translate(" + (r0 + 15) + ")" +
+                (d.angle > Math.PI ? "rotate(180)" : "");
+        })
+        .text(function(d) {
+
+            if (mapReader(d).gname.split("_")[0] == "root") {
+
+                var kkey = "root"; //+mapReader(d).gname.split("_")[1];
+            } else {
+
+                var kkey = mapReader(d).gname.split("_")[1];
+            }
+            return "Q" + kkey;
+        });
+
+    //["#ffffb2","#fed976","#feb24c","#fd8d3c","#f03b20","#bd0026"];
+
+    //colors1.push("#b2182b");
+    // console.log(colors1);
+    //["#bd0026","#f03b20","#fd8d3c","#feb24c","#fed976","#ffffb2"];
+    //["#ffffb2","#fed976","#feb24c","#fd8d3c","#f03b20","#bd0026"];
+    //["#bd0026","#f03b20","#fd8d3c","#feb24c","#fed976","#ffffb2"];
+
+    //d3.scaleOrdinal(d3.schemeCategory20c);
+
+    var chordPaths = svg.selectAll("path.chord")
+        .data(function(chords) {
+            return chords;
+        })
+        .enter().append("svg:path")
+        .attr("class", "chord")
+        .style("stroke", "grey")
+        //   .attr("class", function(d) {
+
+        // console.log(d.target.index);
+        //   return "chord chord-" + d.source.index + " chord-" + d.target.index // The first chord allows us to select all of them. The second chord allows us to select each individual one. 
+        //  })
+        //  .style("fill", function(d){ return "url(#" + getGradID(d) + ")"; })
+        .style("fill", function(d, i) {
+
+            //console.log(d);
+            //  console.log(data[i].node,data[i].root);
+            /* if (data[i].root.indexOf("n_")>-1) {
+                 //console.log(data[i].node);
+                 var k=Number(data[i].root.replace("n_",""));
+                 }  else {
+                     var k=Number(data[i].node.replace("n_",""));
+                     // console.log(data[i]);
+                 }*/
+
+            /*  if (data[i].root.indexOf("n_")>-1) {
+                      //console.log(data[i].root);
+                     var k=Number(data[i].root.replace("n_",""));
+                 }  */
+            //   console.log(d.source.index,d.target.index-1,i);
+            if (val == "in") {
+
+                // console.log("source "+d.source.index);
+                return colors[d.source.index];
+            } else if (val == "out") {
+
+                //console.log("target "+d.target.index);
+                //   console.log(colors1[d.target.index-1]);    
+
+                return colors1[d.target.index - 1];
+
+            } else {
+                //console.log(colors9);
+                //  console.log(mapReader(d).gname);
+
+
+                //console.log(getGradID1(d));
+                // .style("fill", function(d){ return color(d.index)})
+                //  var colorRange = [colors[d.source.index],colors[d.target.index-1]];
+                //  var arr=[d.source.index,d.target.index-1];
+                // var color3 = d3.scaleLinear().range(colorRange).domain(d3.extent(arr));
+                // var a=[d.source.index,d.target.index];
+                //  console.log(getGradID1(a));
+                //console.log(getGradID(d));
+                return "url(#" + getGradID(d) + ")";
+                // return color3;//colors[0];
+            }
+        })
+        .attr("d", ribbon.radius(r0))
+
+
+
+}
+
+
+window.onload = function() {
+initialize();
+//document.getElementById('select_data').value = "Chicago";
+map.on("style.load",function() {
+console.log(document.getElementById("select_data").value);
+change_data(document.getElementById("select_data").value);
+});
+document.getElementById("select_data").addEventListener("change", change_data);
+
+document.querySelector("#stop_button").addEventListener("click", change_data)
+document.querySelector("#mobility").addEventListener("click", click_f)
+document.querySelector("#mentions").addEventListener("click", click_f)
+document.querySelector("#relationships").addEventListener("change", click_f)
+
+};
+</script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/foundation/6.4.3/js/foundation.min.js"></script>
+  <script>
+      $(document).foundation();
+    </script>
+</body>
+</html>
