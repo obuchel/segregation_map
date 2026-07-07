@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lutsk Shelling Registry — Interactive Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+  :root{
+    --bg: #10161f;
+    --panel: #161d29;
+    --panel-border: #263042;
+    --ink: #e7ecf3;
+    --ink-dim: #93a1b5;
+    --accent: #d1495b;
+    --accent-soft: rgba(209,73,91,0.18);
+    --gold: #c9a24b;
+    --steel: #6f8ba8;
+    --violet: #8b7fc7;
+    --font-display: "Georgia", "Times New Roman", serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "SF Mono", "Consolas", monospace;
+  }
+  *{ box-sizing: border-box; }
+  html, body{
+    margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font-family: var(--font-body); height:100%;
+  }
+  .wrap{
+    display:flex; flex-direction:column; height:100vh; min-height:600px;
+  }
+  header{
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid var(--panel-border);
+    background: linear-gradient(180deg, #131a25, #10161f);
+  }
+  h1{
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 0.3px;
+    margin: 0 0 4px;
+    color: var(--ink);
+  }
+  .sub{
+    font-size: 12.5px;
+    color: var(--ink-dim);
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  }
+  .sub .pin{ color: var(--gold); }
+  .legend{
+    display:flex; gap:16px; flex-wrap:wrap; margin-top:10px;
+  }
+  .legend-item{
+    display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--ink-dim);
+  }
+  .dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; border:1px solid rgba(255,255,255,0.25); }
+  .main{
+    flex:1; display:flex; min-height:0;
+  }
+  #map{ flex:1; }
+  .side{
+    width: 300px;
+    border-left: 1px solid var(--panel-border);
+    background: var(--panel);
+    overflow-y: auto;
+    padding: 14px;
+  }
+  .side h2{
+    font-family: var(--font-display);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--ink-dim);
+    margin: 4px 0 12px;
+  }
+  .event{
+    border: 1px solid var(--panel-border);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    background: rgba(255,255,255,0.02);
+  }
+  .event:hover{ background: rgba(255,255,255,0.05); transform: translateX(2px); }
+  .event.active{ background: var(--accent-soft); }
+  .event .date{
+    font-family: var(--font-mono); font-size: 11px; color: var(--gold); letter-spacing: 0.5px;
+  }
+  .event .title{
+    font-size: 13px; font-weight: 600; margin: 3px 0 2px; color: var(--ink);
+  }
+  .event .dist{
+    font-size: 11px; color: var(--steel); font-family: var(--font-mono);
+  }
+  /* Leaflet overrides */
+  .leaflet-container{ background: #0c1119; }
+  .leaflet-popup-content-wrapper{
+    background: var(--panel); color: var(--ink); border: 1px solid var(--panel-border);
+    border-radius: 6px;
+  }
+  .leaflet-popup-tip{ background: var(--panel); }
+  .leaflet-popup-content{ margin: 12px 14px; font-family: var(--font-body); font-size: 12.5px; line-height: 1.5; }
+  .popup-title{ font-weight: 700; font-size: 13.5px; margin-bottom: 4px; color: var(--ink); }
+  .popup-date{ font-family: var(--font-mono); color: var(--gold); font-size: 11px; margin-bottom: 6px; }
+  .popup-body{ color: var(--ink-dim); }
+  .popup-source{ margin-top: 6px; font-size: 11px; color: var(--steel); }
+  .dist-label{
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--gold);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    white-space: nowrap;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+  .home-icon{
+    display:flex; align-items:center; justify-content:center;
+    width:30px; height:30px;
+    background: var(--gold);
+    border: 2px solid #10161f;
+    border-radius: 50%;
+    box-shadow: 0 0 0 5px rgba(201,162,75,0.25);
+  }
+  .home-icon svg{ width:16px; height:16px; }
+  footer{
+    padding: 8px 24px;
+    border-top: 1px solid var(--panel-border);
+    font-size: 10.5px;
+    color: var(--ink-dim);
+    background: #10161f;
+  }
+  @media (max-width: 760px){
+    .side{ display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Consolidated Registry of Shelling Attacks on Lutsk</h1>
+    <div class="sub"><span class="pin">📍</span> Reference point: 37 Koniakina St. · distances are shortest driving route</div>
+    <div class="legend">
+      <div class="legend-item"><span class="dot" style="background:#6f8ba8"></span> Military site</div>
+      <div class="legend-item"><span class="dot" style="background:#c9a24b"></span> Energy / fuel</div>
+      <div class="legend-item"><span class="dot" style="background:#8b7fc7"></span> Industrial</div>
+      <div class="legend-item"><span class="dot" style="background:#d1495b"></span> Residential</div>
+      <div class="legend-item"><span class="dot" style="background:#e7ecf3"></span> Utility structures</div>
+    </div>
+  </header>
+  <div class="main">
+    <div id="map"></div>
+    <div class="side">
+      <h2>Timeline of Events</h2>
+      <div id="event-list"></div>
+    </div>
+  </div>
+  <footer>Sources: Wikipedia, Suspilne, NV.ua, TSN.ua, 24 Kanal · 2022–2026</footer>
+</div>
+
+<script>
+const HOME = { lat: 50.7623284, lng: 25.3564371, label: "37 Koniakina St." };
+
+const events = [
+  {
+    date: "Feb 24, 2022",
+    title: "Military airfield",
+    addr: "Aviatoriv St. (Vyshkiv district)",
+    lat: 50.7740985, lng: 25.345347,
+    category: "military",
+    dist: 3.6,
+    body: "The first strikes on the city's infrastructure on the day the full-scale war began. Around 6 explosions were reported.",
+    source: "Wikipedia"
+  },
+  {
+    date: "Mar 11, 2022",
+    title: "Military airfield (repeat strike)",
+    addr: "Aviatoriv St. (Vyshkiv district)",
+    lat: 50.7745, lng: 25.3448,
+    category: "military",
+    dist: 3.6,
+    body: "A repeat missile strike that caused a large fire. 4 servicemen were killed, 6 wounded.",
+    source: "Suspilne"
+  },
+  {
+    date: "Mar 27, 2022",
+    title: "Civilian oil depot",
+    addr: "2 Yershova St. (Industrial zone)",
+    lat: 50.7786018, lng: 25.3843506,
+    category: "energy",
+    dist: 3.8,
+    body: "Struck by cruise missiles. Fuel storage tanks were completely destroyed. The resulting fire took over 30 hours to extinguish.",
+    source: "Wikipedia"
+  },
+  {
+    date: "Oct 22, 2022",
+    title: "L-Pivnichna power substation",
+    addr: "Karbysheva St. (Northern industrial zone)",
+    lat: 50.7783624, lng: 25.3723674,
+    category: "energy",
+    dist: 1.7,
+    body: "A critical energy facility was hit. The city fell into a prolonged blackout. The blast wave damaged nearby houses.",
+    source: "Suspilne"
+  },
+  {
+    date: "Aug 15, 2023",
+    title: "SKF Ukraine bearing plant",
+    addr: "34 Bozhenka St. (HPZ district)",
+    lat: 50.7168092, lng: 25.3192523,
+    category: "industry",
+    dist: 9.4,
+    body: "A missile strike on the workshops of an industrial plant. 3 workers were killed during the night shift.",
+    source: "NV.ua"
+  },
+  {
+    date: "Aug 26, 2024",
+    title: "Nine-story residential building",
+    addr: "18 Vidrodzhennya Ave. (building with the 'Nash Kray' store)",
+    lat: 50.7520344, lng: 25.3791604,
+    category: "residential",
+    dist: 3.7,
+    body: "A direct hit by a Shahed drone. A residential stairwell (upper floors and technical floor) was completely destroyed. 1 person was killed, 5 wounded.",
+    source: "Suspilne"
+  },
+  {
+    date: "Jul 9, 2025",
+    title: "Nine-story residential building",
+    addr: "12 Ozeretska St. (Vyshkiv district)",
+    lat: 50.7652941, lng: 25.3407637,
+    category: "residential",
+    dist: 2.4,
+    body: "A nighttime drone raid. Falling debris caused major structural damage to a building's stairwell. Nearby garages caught fire.",
+    source: "TSN.ua"
+  },
+  {
+    date: "May 13, 2026",
+    title: "Utility structures",
+    addr: "Central districts of the city",
+    lat: 50.7472, lng: 25.3254,
+    category: "utility",
+    dist: 2.7,
+    body: "A daytime drone attack at extremely low altitude. Non-residential premises were damaged, 1 person wounded.",
+    source: "24 Kanal",
+    approx: true
+  }
+];
+
+const colors = {
+  military: "#6f8ba8",
+  energy: "#c9a24b",
+  industry: "#8b7fc7",
+  residential: "#d1495b",
+  utility: "#e7ecf3"
+};
+
+const map = L.map('map', { zoomControl: true }).setView([HOME.lat, HOME.lng], 12);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CARTO',
+  subdomains: 'abcd',
+  maxZoom: 19
+}).addTo(map);
+
+// Home marker — house icon
+const houseSVG = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M3 11L12 3L21 11" stroke="#10161f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M5 9.5V20C5 20.55 5.45 21 6 21H9.5V15C9.5 14.45 9.95 14 10.5 14H13.5C14.05 14 14.5 14.45 14.5 15V21H18C18.55 21 19 20.55 19 20V9.5" stroke="#10161f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
+const homeIcon = L.divIcon({
+  className: '',
+  html: `<div class="home-icon">${houseSVG}</div>`,
+  iconSize: [30,30],
+  iconAnchor: [15,15]
+});
+L.marker([HOME.lat, HOME.lng], { icon: homeIcon, zIndexOffset: 1000 })
+  .addTo(map)
+  .bindPopup(`<div class="popup-title">🏠 ${HOME.label}</div><div class="popup-body">Reference point used to calculate distances</div>`);
+
+const markers = {};
+const listEl = document.getElementById('event-list');
+
+events.forEach((ev, i) => {
+  const color = colors[ev.category];
+
+  // dashed line
+  L.polyline([[HOME.lat, HOME.lng], [ev.lat, ev.lng]], {
+    color: color,
+    weight: 2,
+    dashArray: '6,6',
+    opacity: 0.75
+  }).addTo(map);
+
+  // distance label at midpoint
+  const midLat = (HOME.lat + ev.lat) / 2;
+  const midLng = (HOME.lng + ev.lng) / 2;
+  L.marker([midLat, midLng], {
+    icon: L.divIcon({
+      className: '',
+      html: `<div class="dist-label">~${ev.dist} km</div>`,
+      iconSize: null
+    }),
+    interactive: false
+  }).addTo(map);
+
+  // event marker
+  const marker = L.circleMarker([ev.lat, ev.lng], {
+    radius: 8,
+    fillColor: color,
+    color: '#10161f',
+    weight: 2,
+    fillOpacity: 0.95
+  }).addTo(map);
+
+  marker.bindPopup(`
+    <div class="popup-date">${ev.date}</div>
+    <div class="popup-title">${ev.title}</div>
+    <div class="popup-body">${ev.addr}<br><br>${ev.body}</div>
+    <div class="popup-source">Source: ${ev.source}</div>
+  `);
+
+  markers[i] = marker;
+
+  const card = document.createElement('div');
+  card.className = 'event';
+  card.style.borderLeftColor = color;
+  card.innerHTML = `
+    <div class="date">${ev.date}</div>
+    <div class="title">${ev.title}</div>
+    <div class="dist">${ev.addr} · ~${ev.dist} km</div>
+  `;
+  card.addEventListener('click', () => {
+    map.setView([ev.lat, ev.lng], 14, { animate: true });
+    marker.openPopup();
+    document.querySelectorAll('.event').forEach(e => e.classList.remove('active'));
+    card.classList.add('active');
+  });
+  listEl.appendChild(card);
+});
+</script>
+</body>
+</html>
