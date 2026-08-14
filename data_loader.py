@@ -1,0 +1,192 @@
+"""
+data_loader.py
+==============
+Loads the per-city `features_<City>_diversity.json` files (which are a
+superset of `features_<City>.json` — they already contain Income,
+Income_Quantile, Segregation, Centroid, GEOID, PLUS the nested
+`diversity` / `ethnicity` / `dissimilarity_contribution` /
+`city_dissimilarity_index` blocks) and turns them into one flat,
+tidy DataFrame with one row per census tract.
+
+Modeling choices made explicit here (the source JSON does not label
+these, so they are decisions made to reproduce the paper's figures):
+
+- pct_black      = black_alone / total
+- pct_other_race = (native_american_alone + asian_alone +
+                     pacific_islander_alone + some_other_race_alone +
+                     two_or_more_races) / total
+- pct_white      = white_alone / total   (NOT a residual -- uses the
+  white_alone field directly. hispanic_or_latino is its own separate
+  field in the source data and is deliberately excluded from every
+  predictor here rather than folded into pct_white or pct_other_race.
+  This means pct_black + pct_other_race + pct_white no longer sums to 1
+  for tracts with a hispanic_or_latino population -- that remaining
+  share simply isn't represented among the three composition predictors
+  used in the regressions/GWR.)
+
+- ethnic_diversity = Shannon entropy of the tract's population across
+  all 8 mutually-exclusive Census race/ethnicity categories
+  (hispanic_or_latino, white_alone, black_alone, native_american_alone,
+  asian_alone, pacific_islander_alone, some_other_race_alone,
+  two_or_more_races), normalized by log2(8) so it ranges 0 (single
+  group) to 1 (population spread evenly across all 8 groups) -- the
+  same normalized-entropy construction Section 2.5 uses for the
+  income-sextile connection-diversity score, applied here to
+  within-tract racial/ethnic composition instead. Used in place of
+  pct_black/pct_other_race as the GWR predictor in Figure 8, per
+  instruction.
+
+- mobility_diversity / mentions_diversity = mean of the `in` and `out`
+  entropy scores for that network (the paper computes 4 diversity
+  scores per tract -- in/out x mobility/mentions -- but Figures 5-9
+  each show ONE number per tract per network, so an in/out average is
+  the most defensible reduction absent further instruction).
+- mobility_degree = mean of `in` and `out` degree for the mobility
+  network (used as the third outcome in Figure 7).
+"""
+from __future__ import annotations
+import json
+import numpy as np
+import pandas as pd
+from pathlib import Path
+
+CITIES = ["Chicago", "Detroit", "Philadelphia", "Dallas", "NewYork"]
+CITY_DISPLAY = {"NewYork": "New York"}
+
+#DATA_DIR = str(Path(__file__).parent)+"data/"
+DATA_DIR = Path(__file__).parent / "data"
+
+def _display_name(city: str) -> str:
+    return CITY_DISPLAY.get(city, city)
+
+
+def load_city_diversity(city: str, data_dir: Path = DATA_DIR) -> pd.DataFrame:
+    """Load one city's *_diversity.json into a flat per-tract DataFrame."""
+    path = data_dir / f"features_{city}_diversity.json"
+    with open(path) as f:
+        gj = json.load(f)
+
+    rows = []
+    for feat in gj["features"]:
+        p = feat["properties"]
+        lon, lat = p.get("Centroid", [np.nan, np.nan])
+
+        eth = p.get("ethnicity") or {}
+        total = eth.get("total", np.nan)
+
+        def frac(key):
+            if not total:
+                return np.nan
+            return eth.get(key, 0) / total
+
+        pct_black = frac("black_alone")
+        pct_other_race = (
+            frac("native_american_alone")
+            + frac("asian_alone")
+            + frac("pacific_islander_alone")
+            + frac("some_other_race_alone")
+            + frac("two_or_more_races")
+        )
+        pct_white = frac("white_alone")
+
+        ETHNIC_CATEGORIES = [
+            "hispanic_or_latino", "white_alone", "black_alone",
+            "native_american_alone", "asian_alone", "pacific_islander_alone",
+            "some_other_race_alone", "two_or_more_races",
+        ]
+        if total:
+            shares = np.array([max(eth.get(k, 0), 0) / total for k in ETHNIC_CATEGORIES])
+            shares = shares[shares > 0]
+            ethnic_diversity = (
+                -np.sum(shares * np.log2(shares)) / np.log2(len(ETHNIC_CATEGORIES))
+                if shares.size > 0 else np.nan
+            )
+        else:
+            ethnic_diversity = np.nan
+
+        div = p.get("diversity") or {}
+
+        def entropy(net, direction):
+            try:
+                v = div[net][direction]["entropy"]
+            except (KeyError, TypeError):
+                return np.nan
+            return np.nan if v is None else v
+
+        def degree(net, direction):
+            try:
+                v = div[net][direction]["degree"]
+            except (KeyError, TypeError):
+                return np.nan
+            return np.nan if v is None else v
+
+        mobility_diversity = np.nanmean(
+            [entropy("mobility", "out"), entropy("mobility", "in")]
+        )
+        mentions_diversity = np.nanmean(
+            [entropy("mentions", "out"), entropy("mentions", "in")]
+        )
+        mobility_degree = np.nanmean(
+            [degree("mobility", "out"), degree("mobility", "in")]
+        )
+
+        rows.append(
+            dict(
+                city=_display_name(city),
+                GEOID=p.get("GEOID"),
+                lon=lon,
+                lat=lat,
+                Income=p.get("Income"),
+                Income_Quantile=p.get("Income_Quantile"),
+                Segregation=p.get("Segregation"),
+                Mobility_Segregation=p.get("Mobility_Segregation"),
+                Population=p.get("Population", total),
+                pct_black=pct_black,
+                pct_other_race=pct_other_race,
+                pct_white=pct_white,
+                ethnic_diversity=ethnic_diversity,
+                mobility_diversity=mobility_diversity,
+                mentions_diversity=mentions_diversity,
+                mobility_out_diversity=entropy("mobility", "out"),
+                mobility_in_diversity=entropy("mobility", "in"),
+                mentions_out_diversity=entropy("mentions", "out"),
+                mentions_in_diversity=entropy("mentions", "in"),
+                mobility_degree=mobility_degree,
+                dissimilarity_contribution=p.get("dissimilarity_contribution"),
+                city_dissimilarity_index=p.get("city_dissimilarity_index"),
+            )
+        )
+
+    df = pd.DataFrame(rows)
+    return df
+
+
+def load_all_cities(cities=CITIES, data_dir: Path = DATA_DIR) -> pd.DataFrame:
+    frames = [load_city_diversity(c, data_dir) for c in cities]
+    df = pd.concat(frames, ignore_index=True)
+
+    # Drop tracts with no usable income or diversity signal (e.g. water-only
+    # tracts / zero-population tracts that show up as all-zero placeholders).
+    df = df[df["Population"].fillna(0) > 0].copy()
+    df = df[df["Income"].notna() & (df["Income"] > 0)].copy()
+
+    # Within-city decile bins (1 = lowest ... 10 = highest), used by Figures 5 & 6.
+    df["income_decile"] = df.groupby("city")["Income"].transform(
+        lambda s: pd.qcut(s, 10, labels=False, duplicates="drop") + 1
+    )
+    df["pct_black_decile"] = df.groupby("city")["pct_black"].transform(
+        lambda s: pd.qcut(s.rank(method="first"), 10, labels=False, duplicates="drop") + 1
+    )
+
+    # Convenience: standardized income in $10k units, quadratic term.
+    df["Income_10k"] = df["Income"] / 10_000
+    df["Income_10k_sq"] = df["Income_10k"] ** 2
+
+    return df.reset_index(drop=True)
+
+
+if __name__ == "__main__":
+    df = load_all_cities()
+    print(df.shape)
+    print(df.groupby("city").size())
+    print(df.isna().sum())
